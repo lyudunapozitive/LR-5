@@ -1,8 +1,9 @@
+
 """
 Лабораторна робота № 5.
-Синтаксичний розбір журналів мережевого комутатора регулярними виразами
-та формування табличних інженерних звітів через f-strings.
-Освітній компонент: Програмування на Python.
+Синтаксичний розбір журналу Git Audit регулярними виразами
+та формування табличних звітів через f-strings.
+Варіант 20.
 """
 
 import re
@@ -11,17 +12,25 @@ import time
 from pathlib import Path
 
 
-# Регулярний вираз із іменованими групами для розбору телеметрії порту
-# Формат: YYYY-MM-DD HH:MM:SS | Switch | Port: ... | MAC: ... | VLAN: ... | Status: ... | Speed: ... | Duplex: ...
+# Регулярний вираз з іменованими групами для розбору Git Audit
+# Формат: Commit_Hash | Author_Name | Email | Timestamp_ISO | Message
 LOG_PATTERN = re.compile(
-    r"^(?P<timestamp>\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2})\s*\|\s*"
-    r"(?P<switch_id>[A-Za-z0-9_\-]+)\s*\|\s*"
-    r"Port:\s*(?P<port_name>[A-Za-z0-9/]+)\s*\|\s*"
-    r"MAC:\s*(?P<mac_address>[0-9A-Fa-f]{2}(?::[0-9A-Fa-f]{2}){5})\s*\|\s*"
-    r"VLAN:\s*(?P<vlan_id>\d+)\s*\|\s*"
-    r"Status:\s*(?P<link_status>UP|DOWN)\s*\|\s*"
-    r"Speed:\s*(?P<speed_mbps>\d+)Mbps\s*\|\s*"
-    r"Duplex:\s*(?P<duplex_mode>FULL|HALF|AUTO)$"
+    r"^(?P<Commit_Hash>[0-9a-fA-F]{40})\s*\|\s*"
+    r"(?P<Author_Name>[^|]+?)\s*\|\s*"
+    r"(?P<Email>[^|]+?)\s*\|\s*"
+    r"(?P<Timestamp_ISO>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})?)\s*\|\s*"
+    r"(?P<Message>.+?)$"
+)
+
+# Перевірка електронної адреси
+EMAIL_PATTERN = re.compile(
+    r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$"
+)
+
+# Перевірка стандарту Conventional Commits
+COMMIT_PATTERN = re.compile(
+    r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)"
+    r"(\([a-zA-Z0-9._/-]+\))?(!)?: .+"
 )
 
 
@@ -36,17 +45,19 @@ def sanitize_log_line(raw_line: str) -> str:
 
 def validate_extracted_data(record: dict) -> bool:
     """
-    Здійснює семантичну валідацію вилучених параметрів кадру:
-    перевіряє коректність діапазону VLAN (1..4094) та допустимі значення швидкості.
+    Здійснює перевірку параметрів запису Git Audit:
+    перевіряє email та відповідність Conventional Commits.
     """
-    vlan = int(record["vlan_id"])
-    speed = int(record["speed_mbps"])
+    email = record["Email"]
+    message = record["Message"]
 
-    if not (1 <= vlan <= 4094):
-        return False
-    if speed not in (0, 10, 100, 1000, 10000, 40000, 100000):
-        return False
-    return True
+    email_valid = EMAIL_PATTERN.fullmatch(email) is not None
+    commit_valid = COMMIT_PATTERN.fullmatch(message) is not None
+
+    record["email_valid"] = email_valid
+    record["commit_valid"] = commit_valid
+
+    return email_valid and commit_valid
 
 
 def parse_telemetry_file(file_path: Path) -> list[dict]:
@@ -62,71 +73,78 @@ def parse_telemetry_file(file_path: Path) -> list[dict]:
     with open(file_path, mode="r", encoding="utf-8") as f:
         for line_num, line in enumerate(f, start=1):
             normalized = sanitize_log_line(line)
+
             if not normalized or normalized.startswith("#"):
-                continue  # Пропуск порожніх рядків та коментарів
+                continue
 
             match = LOG_PATTERN.search(normalized)
+
             if match:
                 record = match.groupdict()
-                if validate_extracted_data(record):
-                    # Приведення числових полів до відповідних скалярних типів
-                    record["vlan_id"] = int(record["vlan_id"])
-                    record["speed_mbps"] = int(record["speed_mbps"])
-                    record["line_num"] = line_num
-                    parsed_records.append(record)
-                else:
-                    print(f"Попередження: Рядок {line_num} містить невалідні параметри.")
+
+                record["line_num"] = line_num
+                validate_extracted_data(record)
+                parsed_records.append(record)
             else:
-                print(f"Помилка парсингу: Рядок {line_num} не відповідає формату: '{normalized}'")
+                print(f"Помилка парсингу: Рядок {line_num} не відповідає формату Git Audit.")
 
     return parsed_records
 
 
 def generate_ascii_report(records: list[dict]) -> None:
     """
-    Генерує високоякісний інженерний звіт з фіксованою шириною колонок,
-    вирівнюванням та агрегацією пропускної здатності за допомогою f-strings.
+    Генерує інженерний звіт із фіксованою шириною колонок,
+    вирівнюванням та підрахунком статистики за допомогою f-strings.
     """
-    header_sep = "=" * 98
-    row_sep = "-" * 98
+    header_sep = "=" * 100
+    row_sep = "-" * 100
 
     print("\n" + header_sep)
-    print(f"{'ЗВІТ СТАНУ ІНТЕРФЕЙСІВ МЕРЕЖЕВОГО КОМУТАТОРА':^98}")
+    print(f"{'ЗВІТ АНАЛІЗУ ЖУРНАЛУ GIT AUDIT':^100}")
     print(header_sep)
+
     print(
-        f"| {'Часова мітка':^19} | {'Інтерфейс':^18} | {'MAC-адреса':^17} | "
-        f"{'VLAN':^5} | {'Статус':^6} | {'Швидкість':^10} | {'Дуплекс':^6} |"
+        f"| {'Хеш коміту':<12} | {'Автор':<20} | "
+        f"{'Email':<30} | {'Перевірка':<10} |"
     )
     print(row_sep)
 
-    total_bandwidth_mbps = 0
-    active_ports_count = 0
+    valid_count = 0
+    invalid_count = 0
 
     for rec in records:
-        status_marker = rec["link_status"]
-        speed_str = f"{rec['speed_mbps']} Mbps" if rec["speed_mbps"] > 0 else "N/A"
+        is_valid = rec["email_valid"] and rec["commit_valid"]
+        status = "OK" if is_valid else "ERROR"
 
-        if rec["link_status"] == "UP":
-            active_ports_count += 1
-            total_bandwidth_mbps += rec["speed_mbps"]
+        if is_valid:
+            valid_count += 1
+        else:
+            invalid_count += 1
 
-        # Форматований рядок із роздільниками та точним вирівнюванням
         print(
-            f"| {rec['timestamp']:<19} | {rec['port_name']:<18} | {rec['mac_address']:<17} | "
-            f"{rec['vlan_id']:>5d} | {status_marker:^6} | {speed_str:>10} | {rec['duplex_mode']:^6} |"
+            f"| {rec['Commit_Hash'][:12]:<12} | "
+            f"{rec['Author_Name']:<20} | "
+            f"{rec['Email']:<30} | "
+            f"{status:<10} |"
         )
 
+        print(f"  Дата: {rec['Timestamp_ISO']}")
+        print(f"  Повідомлення: {rec['Message']}")
+        print(f"  Email: {'OK' if rec['email_valid'] else 'ERROR'}")
+        print(f"  Conventional Commits: {'OK' if rec['commit_valid'] else 'ERROR'}")
+        print(row_sep)
+
     print(header_sep)
-    print(f"{'ПІДСУМКОВА СТАТИСТИКА КОМУТАТОРА':^98}")
+    print(f"{'ПІДСУМКОВА СТАТИСТИКА GIT AUDIT':^100}")
     print(row_sep)
-    print(f"  Всього проаналізовано інтерфейсів: {len(records):>5d}")
-    print(f"  Активних інтерфейсів (Link UP):   {active_ports_count:>5d}")
-    print(f"  Сумарна комутаційна ємність:      {total_bandwidth_mbps / 1000:>8.2f} Gbps ({total_bandwidth_mbps:,} Mbps)")
+    print(f"  Всього проаналізовано комітів: {len(records):>5d}")
+    print(f"  Коректних комітів:           {valid_count:>5d}")
+    print(f"  Некоректних комітів:         {invalid_count:>5d}")
     print(header_sep + "\n")
 
 
 def main() -> None:
-    """Головна точка входу модуля обробки логів."""
+    """Головна точка входу модуля обробки журналу Git Audit."""
     log_file_path = Path("input_logs.txt")
 
     t_start = time.perf_counter()

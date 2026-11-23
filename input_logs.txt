@@ -1,5 +1,2 @@
-2026-08-30 14:22:01 | SW-CORE-01 | Port: GigabitEthernet0/1 | MAC: 00:1A:2B:3C:4D:5E | VLAN: 100 | Status: UP   | Speed: 1000Mbps | Duplex: FULL
-2026-08-30 14:22:05 | SW-CORE-01 | Port: FastEthernet0/2    | MAC: A4:83:E7:11:22:33 | VLAN: 200 | Status: DOWN | Speed: 100Mbps  | Duplex: HALF
-2026-08-30 14:22:12 | SW-CORE-01 | Port: GigabitEthernet0/3 | MAC: 00:50:56:C0:00:08 | VLAN: 100 | Status: UP   | Speed: 1000Mbps | Duplex: FULL
-2026-08-30 14:22:18 | SW-CORE-01 | Port: TenGigabitEth0/1   | MAC: 3C:D9:2B:AA:BB:CC | VLAN: 999 | Status: UP   | Speed: 10000Mbps| Duplex: FULL
-2026-08-30 14:22:25 | SW-CORE-01 | Port: FastEthernet0/4    | MAC: 00:00:00:00:00:00 | VLAN: 10  | Status: DOWN | Speed: 0Mbps    | Duplex: AUTO
+
+74403096913a9f3bcb604cac280fff2ca933d730 | lyudunapozitive | muntianmarinaf@gmail.com | 2026-11-23T18:30:57+02:00 | Add files via upload
